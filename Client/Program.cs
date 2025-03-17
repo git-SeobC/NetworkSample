@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Client
 {
@@ -12,23 +13,34 @@ namespace Client
     {
         static void Main(string[] args)
         {
-            Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            //Loopback -> 테스트용 내 자신 IP , 127.0.0.1 -> 본인 IP
-            IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 4000);
-            serverSocket.Connect(serverEndPoint);
+            Random random = new Random();
+            String[] oper = { "+", "-", "*", "/" };
 
-            byte[] buffer;
+            for (int i = 0; i < 100; ++i)
+            {
+                Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            string message = "Hello world";
-            buffer = Encoding.UTF8.GetBytes(message);
-            int sendLength = serverSocket.Send(buffer);
+                IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse("192.168.0.22"), 4000);
+                //IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse("192.168.0.22"), 4000);
+                //IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, 4000);
+                serverSocket.Connect(serverEndPoint); //bind
 
-            byte[] buffer2 = new byte[1024];
-            int reecvLength = serverSocket.Receive(buffer2);
+                byte[] buffer;
 
-            Console.WriteLine(Encoding.UTF8.GetString(buffer2));
+                //5 
+                //[][][][][][][][][]
+                string json = "{ \"first\" : 123,  \"oper\" : \"+\", \"second\" :  200 }";
+                String messge = $"{random.Next(1, 99999999)}{oper[random.Next(0, 4)]}{random.Next(1, 99999999)}";
+                buffer = Encoding.UTF8.GetBytes(messge);
+                int SendLength = serverSocket.Send(buffer, 0, buffer.Length, SocketFlags.None);
 
-            serverSocket.Close();
+                byte[] buffer2 = new byte[1024];
+                int RecvLength = serverSocket.Receive(buffer2);
+
+                Console.WriteLine(Encoding.UTF8.GetString(buffer2));
+
+                serverSocket.Close();
+            }
         }
     }
 }
