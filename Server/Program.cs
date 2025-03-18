@@ -21,49 +21,46 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            // user mode, kernel mode
             Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
             IPEndPoint listenEndPoint = new IPEndPoint(IPAddress.Any, 4000);
-
             listenSocket.Bind(listenEndPoint);
+            listenSocket.Listen(10);
+            Socket clientSocket = listenSocket.Accept();
 
-            listenSocket.Listen(10); // backlog는 동시 접속 가능 자 수
-            // 여기까지 Socket 처리
+            // 패킷 길이 받기(header)
+            byte[] headerBuffer = new byte[2];
+            int RecvLength = clientSocket.Receive(headerBuffer, 2, SocketFlags.None);
+            short packetLength = BitConverter.ToInt16(headerBuffer, 0);
+            packetLength = IPAddress.NetworkToHostOrder(packetLength);
 
-            Socket clientSocket = listenSocket.Accept(); // 접속 대기
+            // 실제 데이터(header 길이 만큼 만)
+            byte[] dataBuffer = new byte[4096];
+            RecvLength = clientSocket.Receive(dataBuffer, packetLength, SocketFlags.None);
 
-            byte[] buffer = new byte[1024];
+            string JsonString = Encoding.UTF8.GetString(dataBuffer);
 
-            // 네트워크에서 바로 받는 것이 아니라, OS가 미리 받아온거에서 일정 크기 잘라옴
-            // OS 내부 버퍼에서 복사해옴, -> 자료의 전부를 가져오는 것이 아님
-            int RecvLength = clientSocket.Receive(buffer);
-            // TCP는 누군가에게 받은 자료가 틀리지 않았다는 전제에 사용하는 프로토콜
+            Console.WriteLine(JsonString);
 
-            string JsonString = Encoding.UTF8.GetString(buffer);
+            // custom 패킷 만들기
+            // 다시 전송 메세지
+            string message = "{ \"message\" : \"클라이언트 받고 서버꺼 추가.\"}";
+            byte[] messageBuffer = Encoding.UTF8.GetBytes(message);
+            ushort length = (ushort)IPAddress.HostToNetworkOrder((short)messageBuffer.Length);
 
-            JObject json = JObject.Parse(JsonString);
-            //JsonConvert.DeserializeObject<Message>(JsonString);
+            //길이(headerBuffer)     자료 (message)
+            //[][]        +         [][][][][][][][]
+            headerBuffer = BitConverter.GetBytes(length);
 
-            if (json.Value<string>("message").ToString().CompareTo("안녕하세요") == 0)
-            {
-                byte[] message;
-                JObject result = new JObject();
-                result.Add("message", "반가워");
-                message = Encoding.UTF8.GetBytes(result.ToString());
+            byte[] packetBuffer = new byte[headerBuffer.Length + messageBuffer.Length]; // 실제 전송 데이터 버퍼 = 패킷
 
-                // OS 내부 버퍼에 복사 함, 자료의 전부를 보내는게 아님 (컴퓨터가 바쁠 때)
-                int SendLength = clientSocket.Send(message);
-                // SendLenght나 RecvLength를 통해 정확한 사이즈가 도착했는지 확인하는 작업이 있어야함
-            }
+            Buffer.BlockCopy(headerBuffer, 0, packetBuffer, 0, headerBuffer.Length);
+            Buffer.BlockCopy(messageBuffer, 0, packetBuffer, headerBuffer.Length, messageBuffer.Length);
+
+            int SendLength = clientSocket.Send(packetBuffer, packetBuffer.Length, SocketFlags.None);
+
 
             clientSocket.Close();
             listenSocket.Close();
-
-
-
-
-
 
 
             //MessageObject mo2 = new MessageObject("");
